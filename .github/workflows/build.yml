@@ -4,6 +4,19 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      skip_sandbox:
+        description: Skip Sandbox
+        type: boolean
+        default: false
+      skip_staging:
+        description: Skip Staging
+        type: boolean
+        default: false
+      skip_production:
+        description: Skip Production
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -12,9 +25,11 @@ env:
   DOTNET_VERSION: 11.0.x
   DOTNET_NOLOGO: true
 
+# The skip_* inputs only exist on manual runs. On push they are empty, so every stage runs.
 jobs:
   sandbox:
     name: Sandbox
+    if: ${{ !inputs.skip_sandbox }}
     runs-on: ubuntu-latest
     environment: sandbox
     steps:
@@ -28,6 +43,8 @@ jobs:
   staging:
     name: Staging
     needs: sandbox
+    # Without !cancelled() && !failure(), a skipped earlier stage would skip this one too.
+    if: ${{ !cancelled() && !failure() && !inputs.skip_staging }}
     runs-on: ubuntu-latest
     # Waits for approval: the "staging" environment has required reviewers.
     environment: staging
@@ -41,7 +58,8 @@ jobs:
 
   production:
     name: Production
-    needs: staging
+    needs: [sandbox, staging]
+    if: ${{ !cancelled() && !failure() && !inputs.skip_production }}
     runs-on: ubuntu-latest
     # Waits for approval: the "production" environment has required reviewers.
     environment: production
